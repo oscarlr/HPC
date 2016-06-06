@@ -1,6 +1,7 @@
 #!/bin/env python
 import subprocess
 from os import environ,system
+from os.path import isfile
 from random import randint
 import sys
 from time import sleep
@@ -11,7 +12,7 @@ CPU=1
 NODES=1
 
 class Master:
-    def __init__(self):
+    def __init__(self,terminate=True):
         self.alloc = environ.get('SJOB_DEFALLOC')
         if self.alloc == None:
             sys.exit('Initiate default allocation with ' 
@@ -20,12 +21,24 @@ class Master:
         if self.job_eo == None:
             self.job_eo = "%s/lsf-output" % environ['HOME']
         self.slaves = []
+        self.terminate = terminate
 
     def add_job(self,bash_fn,walltime=WALLTIME,cpu=CPU,
                 mem=CPU*2.5,nodes=NODES):
-        my_slave = Slave(bash_fn,walltime,cpu,mem,nodes,self.job_eo)
+        my_slave = Slave(bash_fn,walltime,cpu,mem,nodes,self.job_eo,self.terminate)
         self.slaves.append(my_slave)
-    
+
+    def set_job(self):
+        fn = "%s/%s.sh" % (self.job_eo,"".join([str(randint(0,9)) for i in range(8)]))
+        while isfile(fn):
+            fn = "%s/%s.sh" % (self.job_eo,"".join([str(randint(0,9)) for i in range(8)]))
+        return fn
+
+    def combine_jobs(self,fn,add_fn):
+        with open(fn,'a') as f1:
+            with open(add_fn,'r') as f2:
+                f1.write(f2.read())
+
     def jobs_done(self):
         for slave in self.slaves:
             if slave.done() == False:
@@ -39,7 +52,7 @@ class Master:
             done = self.jobs_done()
             
 class Slave:
-    def __init__(self,bash_fn,walltime,cpu,mem,nodes,job_eo):
+    def __init__(self,bash_fn,walltime,cpu,mem,nodes,job_eo,terminate):
         self.walltime = walltime
         self.cpu = cpu
         self.mem = mem
@@ -47,6 +60,7 @@ class Slave:
         self.bash_fn = bash_fn
         self.job_eo = job_eo
         self.id = None
+        self.terminate = terminate
         self.name = self.set_name()
         self.submit_job()
 
@@ -84,6 +98,9 @@ class Slave:
                     if line.startswith('Successfully completed'):
                         return True
         if status == "EXIT":
-            sys.exit('Job was killed')
+            if self.terminate:
+                sys.exit('Job was killed')
+            else:
+                return True
         return False
 
