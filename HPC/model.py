@@ -20,15 +20,15 @@ class Master:
         self.job_eo = environ.get('SJOB_OUTPUT')
         if self.job_eo == None:
             self.job_eo = "%s/lsf-output" % environ['HOME']
-        self.slaves = []
+        self.workers = []
         self.terminate = terminate
 
     def add_job(self,bash_fn,walltime=WALLTIME,cpu=CPU,
                 mem=CPU*2.5,nodes=NODES,architecture=None):
-        my_slave = Slave(bash_fn,walltime,cpu,mem,nodes,self.job_eo,self.terminate,architecture)
-        if my_slave == "KILL":
-            self.kill_all_slaves()
-        self.slaves.append(my_slave)
+        my_worker = Worker(bash_fn,walltime,cpu,mem,nodes,self.job_eo,self.terminate,architecture)
+        if my_worker == "KILL":
+            self.kill_all_workers()
+        self.workers.append(my_worker)
 
     def set_job(self):
         fn = "%s/%s.sh" % (self.job_eo,"".join([str(randint(0,9)) for i in range(8)]))
@@ -43,15 +43,15 @@ class Master:
             #     f1.write(f2.read())
 
     def jobs_done(self):
-        for slave in self.slaves:
-            status = slave.done()
+        for worker in self.workers:
+            status = worker.done()
             if status == False:
                 return False
         return True
 
-    def kill_all_slaves(self):
-        for slave in self.slaves:
-            command = "bkill %s >/dev/null" % slave.id
+    def kill_all_workers(self):
+        for worker in self.workers:
+            command = "bkill %s >/dev/null" % worker.id
             system(command)
             sys.exit("Finished killing your jobs.. :)\nHave a nice day.")        
     
@@ -61,7 +61,7 @@ class Master:
             sleep(SLEEPTIME)
             done = self.jobs_done()
             
-class Slave:
+class Worker:
     def __init__(self,bash_fn,walltime,cpu,mem,nodes,job_eo,terminate,architecture):
         self.walltime = walltime
         self.cpu = cpu
